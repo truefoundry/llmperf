@@ -76,8 +76,8 @@ class OpenAIChatCompletionsClient(LLMClient):
 
                     if not chunk:
                         continue
-                    stem = "data: "
-                    chunk = chunk[len(stem) :]
+                    stem = "data:"
+                    chunk = chunk[len(stem) :].strip()
                     if chunk == b"[DONE]":
                         continue
                     tokens_received += 1
