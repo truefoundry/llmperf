@@ -173,12 +173,12 @@ def log_metrics(
         metrics = {}
 
         key_mapping = {
-            "end_to_end_latency_s": "end_to_end_latency",
-            "inter_token_latency_s": "inter_token_latency",
+            "end_to_end_latency_s": "end_to_end_latency(seconds)",
+            "inter_token_latency_s": "inter_token_latency(seconds)",
             "number_input_tokens": "input_tokens",
             "number_output_tokens": "output_tokens",
             "request_output_throughput_token_per_s": "output_tokens/second",
-            "ttft_s": "time_to_first_token",
+            "ttft_s": "time_to_first_token (seconds)",
         }
 
         for metric_name, metric_values in results.items():
