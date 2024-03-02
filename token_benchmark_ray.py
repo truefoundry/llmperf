@@ -348,7 +348,8 @@ def run_token_benchmark(
         additional_sampling_params=json.loads(additional_sampling_params),
     )
 
-    log_metrics(summary=summary, ml_repo=ml_repo)
+    if ml_repo is not None:
+        log_metrics(summary=summary, ml_repo=ml_repo)
 
     if results_dir:
         filename = f"{model}_{mean_input_tokens}_{mean_output_tokens}"
@@ -486,7 +487,7 @@ args.add_argument(
 args.add_argument(
     "--ml_repo_name",
     type=str,
-    default="llm-bench",
+    default=None,
     help=("Name of ML repo in Truefoundry where all the results will be logged."),
 )
 
