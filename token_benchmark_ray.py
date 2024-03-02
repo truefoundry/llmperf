@@ -173,12 +173,12 @@ def log_metrics(
         metrics = {}
 
         key_mapping = {
-            "end_to_end_latency_s": "End-to-End Latency",
-            "inter_token_latency_s": "Inter-Token Latency",
-            "number_input_tokens": "Number Input Tokens",
-            "number_output_tokens": "Number Output Tokens",
-            "request_output_throughput_token_per_s": "Request Output Throughput Token Per S",
-            "ttft_s": "Time to First Token",
+            "end_to_end_latency_s": "end_to_end_latency",
+            "inter_token_latency_s": "inter_token_latency",
+            "number_input_tokens": "input_tokens",
+            "number_output_tokens": "output_tokens",
+            "request_output_throughput_token_per_s": "output_tokens/second",
+            "ttft_s": "time_to_first_token",
         }
 
         for metric_name, metric_values in results.items():
@@ -187,14 +187,13 @@ def log_metrics(
                     metric_name = key_mapping[metric_name]
 
                 # Extract the p50, p90, and p99 values
-                metrics[f"{metric_name} p50"] = metric_values["quantiles"].get("p50")
-                metrics[f"{metric_name} p90"] = metric_values["quantiles"].get("p90")
-                metrics[f"{metric_name} p99"] = metric_values["quantiles"].get("p99")
+                metrics[f"{metric_name}_p50"] = metric_values["quantiles"].get("p50")
+                metrics[f"{metric_name}_p90"] = metric_values["quantiles"].get("p90")
+                metrics[f"{metric_name}_p99"] = metric_values["quantiles"].get("p99")
 
             elif isinstance(metric_values, (int, float)):
                 # If the metric is a single variable, add it directly
-                renamed_metric_name = metric_name.replace("_", " ").title()
-                metrics[renamed_metric_name] = metric_values
+                metrics[metric_name] = metric_values
 
         run.log_metrics(metrics)
 
