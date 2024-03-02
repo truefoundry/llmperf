@@ -1,29 +1,29 @@
 import argparse
-from collections.abc import Iterable
 import json
 import os
-from pathlib import Path
 import re
 import time
 import random
+from collections.abc import Iterable
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import mlfoundry
 import pandas as pd
 import ray
+from tqdm import tqdm
+from transformers import LlamaTokenizerFast
 
 from llmperf import common_metrics
 from llmperf.common import SUPPORTED_APIS, construct_clients
-
 from llmperf.models import RequestConfig
 from llmperf.requests_launcher import RequestsLauncher
 from llmperf.utils import (
-    randomly_sample_sonnet_lines_prompt,
     LLMPerfResults,
+    randomly_sample_sonnet_lines_prompt,
     sample_random_positive_int,
 )
-from tqdm import tqdm
 
-from transformers import LlamaTokenizerFast
 
 def get_token_throughput_latencies(
     model: str,
@@ -63,7 +63,7 @@ def get_token_throughput_latencies(
         "hf-internal-testing/llama-tokenizer"
     )
     get_token_length = lambda text: len(tokenizer.encode(text))
-    
+
     if not additional_sampling_params:
         additional_sampling_params = {}
 
@@ -113,7 +113,7 @@ def get_token_throughput_latencies(
             for out in outs:
                 request_metrics, gen_text, _ = out
                 num_output_tokens = get_token_length(gen_text)
-                if num_output_tokens: 
+                if num_output_tokens:
                     request_metrics[common_metrics.INTER_TOKEN_LAT] /= num_output_tokens
                 else:
                     request_metrics[common_metrics.INTER_TOKEN_LAT] = 0
@@ -136,20 +136,18 @@ def get_token_throughput_latencies(
     for out in outs:
         request_metrics, gen_text, _ = out
         num_output_tokens = get_token_length(gen_text)
-        if num_output_tokens: 
+        if num_output_tokens:
             request_metrics[common_metrics.INTER_TOKEN_LAT] /= num_output_tokens
         else:
             request_metrics[common_metrics.INTER_TOKEN_LAT] = 0
         request_metrics[common_metrics.NUM_OUTPUT_TOKENS] = num_output_tokens
         request_metrics[common_metrics.NUM_TOTAL_TOKENS] = request_metrics[common_metrics.NUM_INPUT_TOKENS] + num_output_tokens
         request_metrics[common_metrics.REQ_OUTPUT_THROUGHPUT] = num_output_tokens / request_metrics[common_metrics.E2E_LAT]
-                
         all_metrics.append(request_metrics)
     completed_requests.extend(all_metrics)
 
     print(f"\Results for token benchmark for {model} queried with the {llm_api} api.\n")
     ret = metrics_summary(completed_requests, start_time, end_time)
-
     metadata = {
         "model": model,
         "mean_input_tokens": mean_input_tokens,
@@ -161,8 +159,49 @@ def get_token_throughput_latencies(
     }
 
     metadata["results"] = ret
-        
     return metadata, completed_requests
+
+
+def log_metrics(
+    summary: Dict,
+    ml_repo: str,
+) -> None:
+    client = mlfoundry.get_client()
+    client.create_ml_repo(ml_repo=ml_repo)
+    run = client.create_run(ml_repo=ml_repo)
+    with run:
+        results = summary.pop("results", {})
+        additional_sampling_params = summary.pop("additional_sampling_params", {})
+        params = {**summary, **additional_sampling_params}
+
+        run.log_params(param_dict=params)
+
+        metrics = {}
+
+        key_mapping = {
+            "end_to_end_latency_s": "end_to_end_latency(seconds)",
+            "inter_token_latency_s": "inter_token_latency(seconds)",
+            "number_input_tokens": "input_tokens",
+            "number_output_tokens": "output_tokens",
+            "request_output_throughput_token_per_s": "output_tokens/second",
+            "ttft_s": "time_to_first_token (seconds)",
+        }
+
+        for metric_name, metric_values in results.items():
+            if isinstance(metric_values, dict) and "quantiles" in metric_values:
+                if metric_name in key_mapping:
+                    metric_name = key_mapping[metric_name]
+
+                # Extract the p50, p90, and p99 values
+                metrics[f"{metric_name}_p50"] = metric_values["quantiles"].get("p50")
+                metrics[f"{metric_name}_p90"] = metric_values["quantiles"].get("p90")
+                metrics[f"{metric_name}_p99"] = metric_values["quantiles"].get("p99")
+
+            elif isinstance(metric_values, (int, float)):
+                # If the metric is a single variable, add it directly
+                metrics[metric_name] = metric_values
+
+        run.log_metrics(metrics)
 
 
 def metrics_summary(
@@ -200,14 +239,14 @@ def metrics_summary(
 
     df = pd.DataFrame(metrics)
     df_without_errored_req = df[df[common_metrics.ERROR_CODE].isna()]
-    
+
     for key in [
         common_metrics.INTER_TOKEN_LAT,
         common_metrics.TTFT,
         common_metrics.E2E_LAT,
         common_metrics.REQ_OUTPUT_THROUGHPUT,
         common_metrics.NUM_INPUT_TOKENS,
-        common_metrics.NUM_OUTPUT_TOKENS
+        common_metrics.NUM_OUTPUT_TOKENS,
     ]:
         print(key)
         ret[key] = {}
@@ -259,7 +298,7 @@ def metrics_summary(
 
     ret[common_metrics.NUM_COMPLETED_REQUESTS] = num_completed_requests
     ret[common_metrics.COMPLETED_REQUESTS_PER_MIN] = num_completed_requests_per_min
-    
+
     return ret
 
 
@@ -276,6 +315,7 @@ def run_token_benchmark(
     additional_sampling_params: str,
     results_dir: str,
     user_metadata: Dict[str, Any],
+    ml_repo: str,
 ):
     """
     Args:
@@ -312,6 +352,9 @@ def run_token_benchmark(
         num_concurrent_requests=num_concurrent_requests,
         additional_sampling_params=json.loads(additional_sampling_params),
     )
+
+    if ml_repo is not None:
+        log_metrics(summary=summary, ml_repo=ml_repo)
 
     if results_dir:
         filename = f"{model}_{mean_input_tokens}_{mean_output_tokens}"
@@ -446,12 +489,18 @@ args.add_argument(
         "name=foo,bar=1. These will be added to the metadata field of the results. "
     ),
 )
+args.add_argument(
+    "--ml_repo_name",
+    type=str,
+    default=None,
+    help=("Name of ML repo in Truefoundry where all the results will be logged."),
+)
+
 
 if __name__ == "__main__":
     env_vars = dict(os.environ)
     ray.init(runtime_env={"env_vars": env_vars})
     args = args.parse_args()
-
     # Parse user metadata.
     user_metadata = {}
     if args.metadata:
@@ -472,4 +521,5 @@ if __name__ == "__main__":
         additional_sampling_params=args.additional_sampling_params,
         results_dir=args.results_dir,
         user_metadata=user_metadata,
+        ml_repo=args.ml_repo_name,
     )
