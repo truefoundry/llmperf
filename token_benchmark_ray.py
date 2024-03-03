@@ -1,14 +1,16 @@
+import re
 import argparse
 import json
 import os
-import re
 import time
 import random
+import string
+from datetime import datetime, timezone
+
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import mlfoundry
 import pandas as pd
 import ray
 from tqdm import tqdm
@@ -162,46 +164,61 @@ def get_token_throughput_latencies(
     return metadata, completed_requests
 
 
+def sanitize_name(value):
+    return re.sub(rf"[{re.escape(string.punctuation)}]+", "-", value.encode("ascii", "ignore").decode("utf-8"))
+
+
 def log_metrics(
-    summary: Dict,
+    summary: Dict[str, Any],
+    model: str,
     ml_repo: str,
+    run_name: Optional[str] = None,
 ) -> None:
+    import mlfoundry
+    
     client = mlfoundry.get_client()
     client.create_ml_repo(ml_repo=ml_repo)
-    run = client.create_run(ml_repo=ml_repo)
-    with run:
-        results = summary.pop("results", {})
-        additional_sampling_params = summary.pop("additional_sampling_params", {})
-        params = {**summary, **additional_sampling_params}
+    if not run_name:
+        job_run_name = os.getenv("TFY_INTERNAL_JOB_RUN_NAME")
+        if job_run_name:
+            fallback_run_name = f"bench-{sanitize_name(model)}-{job_run_name}"
+        else:
+            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
+            fallback_run_name = f"bench-{sanitize_name(model)}-{timestamp}"
+        run_name = fallback_run_name
+    run = client.create_run(ml_repo=ml_repo, run_name=run_name)
+    results = summary.pop("results", {})
+    additional_sampling_params = summary.pop("additional_sampling_params", {})
+    params = {**summary, **additional_sampling_params}
+    run.log_params(param_dict=params)
 
-        run.log_params(param_dict=params)
+    metrics = {}
 
-        metrics = {}
+    key_mapping = {
+        "end_to_end_latency_s": "end_to_end_latency(seconds)",
+        "inter_token_latency_s": "inter_token_latency(seconds)",
+        "number_input_tokens": "input_tokens",
+        "number_output_tokens": "output_tokens",
+        "request_output_throughput_token_per_s": "output_tokens/second",
+        "ttft_s": "time_to_first_token (seconds)",
+    }
 
-        key_mapping = {
-            "end_to_end_latency_s": "end_to_end_latency(seconds)",
-            "inter_token_latency_s": "inter_token_latency(seconds)",
-            "number_input_tokens": "input_tokens",
-            "number_output_tokens": "output_tokens",
-            "request_output_throughput_token_per_s": "output_tokens/second",
-            "ttft_s": "time_to_first_token (seconds)",
-        }
+    for metric_name, metric_values in results.items():
+        if isinstance(metric_values, dict) and "quantiles" in metric_values:
+            if metric_name in key_mapping:
+                metric_name = key_mapping[metric_name]
 
-        for metric_name, metric_values in results.items():
-            if isinstance(metric_values, dict) and "quantiles" in metric_values:
-                if metric_name in key_mapping:
-                    metric_name = key_mapping[metric_name]
+            # Extract the p50, p90, and p99 values
+            metrics[f"{metric_name}_p50"] = metric_values["quantiles"].get("p50")
+            metrics[f"{metric_name}_p90"] = metric_values["quantiles"].get("p90")
+            metrics[f"{metric_name}_p99"] = metric_values["quantiles"].get("p99")
 
-                # Extract the p50, p90, and p99 values
-                metrics[f"{metric_name}_p50"] = metric_values["quantiles"].get("p50")
-                metrics[f"{metric_name}_p90"] = metric_values["quantiles"].get("p90")
-                metrics[f"{metric_name}_p99"] = metric_values["quantiles"].get("p99")
+        elif isinstance(metric_values, (int, float)):
+            # If the metric is a single variable, add it directly
+            metrics[metric_name] = metric_values
 
-            elif isinstance(metric_values, (int, float)):
-                # If the metric is a single variable, add it directly
-                metrics[metric_name] = metric_values
-
-        run.log_metrics(metrics)
+    run.log_metrics(metrics)
+    run.end()
 
 
 def metrics_summary(
@@ -315,7 +332,8 @@ def run_token_benchmark(
     additional_sampling_params: str,
     results_dir: str,
     user_metadata: Dict[str, Any],
-    ml_repo: str,
+    ml_repo: Optional[str] = None,
+    run_name: Optional[str] = None,
 ):
     """
     Args:
@@ -354,7 +372,12 @@ def run_token_benchmark(
     )
 
     if ml_repo is not None:
-        log_metrics(summary=summary, ml_repo=ml_repo)
+        log_metrics(
+            summary=summary,
+            model=model,
+            ml_repo=ml_repo,
+            run_name=run_name
+        )
 
     if results_dir:
         filename = f"{model}_{mean_input_tokens}_{mean_output_tokens}"
@@ -490,10 +513,16 @@ args.add_argument(
     ),
 )
 args.add_argument(
-    "--ml_repo_name",
+    "--ml_repo",
     type=str,
     default=None,
     help=("Name of ML repo in Truefoundry where all the results will be logged."),
+)
+args.add_argument(
+    "--run_name",
+    type=str,
+    default=None,
+    help=("Name of Run Name in ML repo in Truefoundry where all the results will be logged."),
 )
 
 
@@ -521,5 +550,6 @@ if __name__ == "__main__":
         additional_sampling_params=args.additional_sampling_params,
         results_dir=args.results_dir,
         user_metadata=user_metadata,
-        ml_repo=args.ml_repo_name,
+        ml_repo=args.ml_repo,
+        run_name=args.run_name,
     )
