@@ -11,7 +11,11 @@ from llmperf.ray_llm_client import LLMClient
 SUPPORTED_APIS = ["openai", "anthropic", "litellm"]
 
 
-def construct_clients(llm_api: str, num_clients: int) -> List[LLMClient]:
+def construct_clients(
+    llm_api: str,
+    num_clients: int,
+    tokenizer_id: str = "hf-internal-testing/llama-tokenizer",
+) -> List[LLMClient]:
     """Construct LLMClients that will be used to make requests to the LLM API.
 
     Args:
@@ -22,14 +26,17 @@ def construct_clients(llm_api: str, num_clients: int) -> List[LLMClient]:
         The constructed LLMCLients
 
     """
+    kwargs = {"tokenizer_id": tokenizer_id}
     if llm_api == "openai":
-        clients = [OpenAIChatCompletionsClient.remote() for _ in range(num_clients)]
+        clients = [
+            OpenAIChatCompletionsClient.remote(**kwargs) for _ in range(num_clients)
+        ]
     elif llm_api == "sagemaker":
-        clients = [SageMakerClient.remote() for _ in range(num_clients)]
+        clients = [SageMakerClient.remote(**kwargs) for _ in range(num_clients)]
     elif llm_api == "vertexai":
-        clients = [VertexAIClient.remote() for _ in range(num_clients)]
+        clients = [VertexAIClient.remote(**kwargs) for _ in range(num_clients)]
     elif llm_api in SUPPORTED_APIS:
-        clients = [LiteLLMClient.remote() for _ in range(num_clients)]
+        clients = [LiteLLMClient.remote(**kwargs) for _ in range(num_clients)]
     else:
         raise ValueError(
             f"llm_api must be one of the supported LLM APIs: {SUPPORTED_APIS}"
