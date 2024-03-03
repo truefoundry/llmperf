@@ -20,7 +20,8 @@ dependencies = ["pydantic<2.5",
                 "transformers",
                 "tqdm",
                 "boto3",
-                "google-cloud-aiplatform"]
+                "google-cloud-aiplatform",
+                "mlfoundry==0.10.6"]
 
 [tool.setuptools.package-data]
 myModule = ["*.txt"]
