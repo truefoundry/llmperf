@@ -6,7 +6,7 @@ from typing import Any, Dict
 
 import boto3
 import ray
-from transformers import LlamaTokenizerFast
+from transformers import AutoTokenizer
 
 from llmperf.ray_llm_client import LLMClient
 from llmperf.models import RequestConfig
@@ -16,13 +16,6 @@ from llmperf import common_metrics
 @ray.remote
 class SageMakerClient(LLMClient):
     """Client for OpenAI Chat Completions API."""
-
-    def __init__(self):
-        # Sagemaker doesn't return the number of tokens that are generated so we approximate it by
-        # using the llama tokenizer.
-        self.tokenizer = LlamaTokenizerFast.from_pretrained(
-            "hf-internal-testing/llama-tokenizer"
-        )
 
     def llm_request(self, request_config: RequestConfig) -> Dict[str, Any]:
         if not os.environ.get("AWS_ACCESS_KEY_ID"):

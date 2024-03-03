@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 import ray
 from tqdm import tqdm
-from transformers import LlamaTokenizerFast
+from transformers import AutoTokenizer
 
 from llmperf import common_metrics
 from llmperf.common import SUPPORTED_APIS, construct_clients
@@ -38,6 +38,7 @@ def get_token_throughput_latencies(
     max_num_completed_requests: int = 500,
     test_timeout_s=90,
     llm_api="openai",
+    tokenizer_id="hf-internal-testing/llama-tokenizer",
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """Get the token throughput and latencies for the given model.
 
@@ -60,10 +61,7 @@ def get_token_throughput_latencies(
         The individual metrics for each request.
     """
     random.seed(11111)
-
-    tokenizer = LlamaTokenizerFast.from_pretrained(
-        "hf-internal-testing/llama-tokenizer"
-    )
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
     get_token_length = lambda text: len(tokenizer.encode(text))
 
     if not additional_sampling_params:
@@ -158,6 +156,7 @@ def get_token_throughput_latencies(
         "stddev_output_tokens": stddev_output_tokens,
         "num_concurrent_requests": num_concurrent_requests,
         "additional_sampling_params": additional_sampling_params,
+        "tokenizer_id": tokenizer_id,
     }
 
     metadata["results"] = ret
@@ -165,7 +164,11 @@ def get_token_throughput_latencies(
 
 
 def sanitize_name(value):
-    return re.sub(rf"[{re.escape(string.punctuation)}]+", "-", value.encode("ascii", "ignore").decode("utf-8"))
+    return re.sub(
+        rf"[{re.escape(string.punctuation)}]+",
+        "-",
+        value.encode("ascii", "ignore").decode("utf-8"),
+    )
 
 
 def log_metrics(
@@ -175,7 +178,7 @@ def log_metrics(
     run_name: Optional[str] = None,
 ) -> None:
     import mlfoundry
-    
+
     client = mlfoundry.get_client()
     client.create_ml_repo(ml_repo=ml_repo)
     if not run_name:
@@ -192,31 +195,50 @@ def log_metrics(
     params = {**summary, **additional_sampling_params}
     run.log_params(param_dict=params)
 
-    metrics = {}
-
     key_mapping = {
-        "end_to_end_latency_s": "end_to_end_latency(seconds)",
-        "inter_token_latency_s": "inter_token_latency(seconds)",
+        "end_to_end_latency_s": "end_to_end_latency_seconds",
+        "inter_token_latency_s": "inter_token_latency_seconds",
         "number_input_tokens": "input_tokens",
         "number_output_tokens": "output_tokens",
-        "request_output_throughput_token_per_s": "output_tokens/second",
-        "ttft_s": "time_to_first_token (seconds)",
+        "request_output_throughput_token_per_s": "output_tokens_per_second",
+        "ttft_s": "time_to_first_token_seconds",
     }
 
+    # steps_to_metrics = collections.defaultdict(dict)
+    # for metric_name, metric_values in results.items():
+    #     if metric_name in key_mapping:
+    #         metric_name = key_mapping[metric_name]
+    #     if isinstance(metric_values, dict) and "quantiles" in metric_values:
+    #         # TODO: We can turn quantiles into charts
+    #         for quantile_key in metric_values["quantiles"]:
+    #             step = int(quantile_key[1:])
+    #             quantile_value = metric_values["quantiles"][quantile_key]
+    #             steps_to_metrics[step][metric_name] = quantile_value
+    #         steps_to_metrics[0][metric_name] = metric_values["min"]
+    #         steps_to_metrics[100][metric_name] = metric_values["max"]
+    #     elif isinstance(metric_values, (int, float)):
+    #         # If the metric is a single variable, add it directly
+    #         steps_to_metrics[0][metric_name] = metric_values
+    # for step_number, metrics in steps_to_metrics.items():
+    #     run.log_metrics(metrics, step=step_number)
+
+    metrics = {}
     for metric_name, metric_values in results.items():
+        if metric_name in key_mapping:
+            metric_name = key_mapping[metric_name]
         if isinstance(metric_values, dict) and "quantiles" in metric_values:
-            if metric_name in key_mapping:
-                metric_name = key_mapping[metric_name]
-
-            # Extract the p50, p90, and p99 values
-            metrics[f"{metric_name}_p50"] = metric_values["quantiles"].get("p50")
-            metrics[f"{metric_name}_p90"] = metric_values["quantiles"].get("p90")
-            metrics[f"{metric_name}_p99"] = metric_values["quantiles"].get("p99")
-
+            metrics[f"{metric_name}_min"] = metric_values["min"]
+            metrics[f"{metric_name}_max"] = metric_values["max"]
+            metrics[f"{metric_name}_mean"] = metric_values["mean"]
+            metrics[f"{metric_name}_p25"] = metric_values["quantiles"]["p25"]
+            metrics[f"{metric_name}_p50"] = metric_values["quantiles"]["p50"]
+            metrics[f"{metric_name}_p75"] = metric_values["quantiles"]["p75"]
+            metrics[f"{metric_name}_p90"] = metric_values["quantiles"]["p90"]
+            metrics[f"{metric_name}_p95"] = metric_values["quantiles"]["p95"]
+            metrics[f"{metric_name}_p99"] = metric_values["quantiles"]["p99"]
         elif isinstance(metric_values, (int, float)):
             # If the metric is a single variable, add it directly
             metrics[metric_name] = metric_values
-
     run.log_metrics(metrics)
     run.end()
 
@@ -332,6 +354,7 @@ def run_token_benchmark(
     additional_sampling_params: str,
     results_dir: str,
     user_metadata: Dict[str, Any],
+    tokenizer_id: str = "hf-internal-testing/llama-tokenizer",
     ml_repo: Optional[str] = None,
     run_name: Optional[str] = None,
 ):
@@ -369,15 +392,11 @@ def run_token_benchmark(
         stddev_output_tokens=stddev_output_tokens,
         num_concurrent_requests=num_concurrent_requests,
         additional_sampling_params=json.loads(additional_sampling_params),
+        tokenizer_id=tokenizer_id,
     )
 
     if ml_repo is not None:
-        log_metrics(
-            summary=summary,
-            model=model,
-            ml_repo=ml_repo,
-            run_name=run_name
-        )
+        log_metrics(summary=summary, model=model, ml_repo=ml_repo, run_name=run_name)
 
     if results_dir:
         filename = f"{model}_{mean_input_tokens}_{mean_output_tokens}"
@@ -513,16 +532,24 @@ args.add_argument(
     ),
 )
 args.add_argument(
-    "--ml_repo",
+    "--tokenizer-id",
+    type=str,
+    default="hf-internal-testing/llama-tokenizer",
+    help=("Tokenizer to load from HuggingFace Hub. (default: %(default)s)"),
+)
+args.add_argument(
+    "--ml-repo",
     type=str,
     default=None,
     help=("Name of ML repo in Truefoundry where all the results will be logged."),
 )
 args.add_argument(
-    "--run_name",
+    "--run-name",
     type=str,
     default=None,
-    help=("Name of Run Name in ML repo in Truefoundry where all the results will be logged."),
+    help=(
+        "Name of Run Name in ML repo in Truefoundry where all the results will be logged."
+    ),
 )
 
 
@@ -550,6 +577,7 @@ if __name__ == "__main__":
         additional_sampling_params=args.additional_sampling_params,
         results_dir=args.results_dir,
         user_metadata=user_metadata,
+        tokenizer_id=args.tokenizer_id,
         ml_repo=args.ml_repo,
         run_name=args.run_name,
     )

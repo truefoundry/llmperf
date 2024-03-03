@@ -1,11 +1,16 @@
 import abc
 from typing import Any, Dict, Tuple
 
+from transformers import AutoTokenizer
+
 from llmperf.models import RequestConfig
 
 
 class LLMClient:
     """A client for making requests to a LLM API e.g Anyscale Endpoints."""
+
+    def __init__(self, tokenizer_id="hf-internal-testing/llama-tokenizer"):
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
 
     @abc.abstractmethod
     def llm_request(
