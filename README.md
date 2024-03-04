@@ -54,6 +54,16 @@ The Quickstart script accepts several parameters:
 | run_name                   | Name of run in ML_repo                                  |
 | additional-sampling-params | Additional parameters for sampling                      |
 
+#### Generate an API Key
+
+- Navigate to Settings > API Keys tab
+- Click on Create New API Key
+- Give any name to the API Key
+- On Generate, API Key will be gererated.
+- Please save the value or download it
+
+For more details visit [here](https://docs.truefoundry.com/docs/generate-api-key).
+
 ### MLFoundry
 
 ML Repositories are like specialized Git repositories for machine learning, managing runs, models, and artifacts within MLFoundry.
