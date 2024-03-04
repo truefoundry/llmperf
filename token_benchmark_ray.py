@@ -226,19 +226,21 @@ def log_metrics(
     for metric_name, metric_values in results.items():
         if metric_name in key_mapping:
             metric_name = key_mapping[metric_name]
-        if isinstance(metric_values, dict) and "quantiles" in metric_values:
-            metrics[f"{metric_name}_min"] = metric_values["min"]
-            metrics[f"{metric_name}_max"] = metric_values["max"]
-            # metrics[f"{metric_name}_mean"] = metric_values["mean"]
-            # metrics[f"{metric_name}_p25"] = metric_values["quantiles"]["p25"]
-            metrics[f"{metric_name}_p50"] = metric_values["quantiles"]["p50"]
-            # metrics[f"{metric_name}_p75"] = metric_values["quantiles"]["p75"]
-            metrics[f"{metric_name}_p90"] = metric_values["quantiles"]["p90"]
-            # metrics[f"{metric_name}_p95"] = metric_values["quantiles"]["p95"]
-            metrics[f"{metric_name}_p99"] = metric_values["quantiles"]["p99"]
+            if isinstance(metric_values, dict) and "quantiles" in metric_values:
+                metrics[f"{metric_name}_min"] = metric_values["min"]
+                metrics[f"{metric_name}_max"] = metric_values["max"]
+                # metrics[f"{metric_name}_mean"] = metric_values["mean"]
+                # metrics[f"{metric_name}_p25"] = metric_values["quantiles"]["p25"]
+                metrics[f"{metric_name}_p50"] = metric_values["quantiles"]["p50"]
+                # metrics[f"{metric_name}_p75"] = metric_values["quantiles"]["p75"]
+                metrics[f"{metric_name}_p90"] = metric_values["quantiles"]["p90"]
+                # metrics[f"{metric_name}_p95"] = metric_values["quantiles"]["p95"]
+                metrics[f"{metric_name}_p99"] = metric_values["quantiles"]["p99"]
         elif isinstance(metric_values, (int, float)):
             # If the metric is a single variable, add it directly
             metrics[metric_name] = metric_values
+        else:
+            continue
     run.log_metrics(metrics)
     run.end()
 
