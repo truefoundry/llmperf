@@ -1,12 +1,11 @@
-import re
 import argparse
 import json
 import os
-import time
+import re
 import string
-from datetime import datetime, timezone
-
+import time
 from collections.abc import Iterable
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -175,7 +174,6 @@ def log_metrics(
     import mlfoundry
 
     client = mlfoundry.get_client()
-    client.create_ml_repo(ml_repo=ml_repo)
     if not run_name:
         job_run_name = os.getenv("TFY_INTERNAL_JOB_RUN_NAME")
         if job_run_name:
@@ -193,44 +191,19 @@ def log_metrics(
     key_mapping = {
         "end_to_end_latency_s": "end_to_end_latency_seconds",
         "inter_token_latency_s": "inter_token_latency_seconds",
-        # "number_input_tokens": "input_tokens",
-        # "number_output_tokens": "output_tokens",
         "request_output_throughput_token_per_s": "output_tokens_per_second",
         "ttft_s": "time_to_first_token_seconds",
     }
-
-    # steps_to_metrics = collections.defaultdict(dict)
-    # for metric_name, metric_values in results.items():
-    #     if metric_name in key_mapping:
-    #         metric_name = key_mapping[metric_name]
-    #     if isinstance(metric_values, dict) and "quantiles" in metric_values:
-    #         # TODO: We can turn quantiles into charts
-    #         for quantile_key in metric_values["quantiles"]:
-    #             step = int(quantile_key[1:])
-    #             quantile_value = metric_values["quantiles"][quantile_key]
-    #             steps_to_metrics[step][metric_name] = quantile_value
-    #         steps_to_metrics[0][metric_name] = metric_values["min"]
-    #         steps_to_metrics[100][metric_name] = metric_values["max"]
-    #     elif isinstance(metric_values, (int, float)):
-    #         # If the metric is a single variable, add it directly
-    #         steps_to_metrics[0][metric_name] = metric_values
-    # for step_number, metrics in steps_to_metrics.items():
-    #     run.log_metrics(metrics, step=step_number)
 
     metrics = {}
     for metric_name, metric_values in results.items():
         if metric_name in key_mapping:
             metric_name = key_mapping[metric_name]
             if isinstance(metric_values, dict) and "quantiles" in metric_values:
-                metrics[f"{metric_name}_min"] = metric_values["min"]
-                metrics[f"{metric_name}_max"] = metric_values["max"]
-                # metrics[f"{metric_name}_mean"] = metric_values["mean"]
-                # metrics[f"{metric_name}_p25"] = metric_values["quantiles"]["p25"]
                 metrics[f"{metric_name}_p50"] = metric_values["quantiles"]["p50"]
-                # metrics[f"{metric_name}_p75"] = metric_values["quantiles"]["p75"]
                 metrics[f"{metric_name}_p90"] = metric_values["quantiles"]["p90"]
-                # metrics[f"{metric_name}_p95"] = metric_values["quantiles"]["p95"]
                 metrics[f"{metric_name}_p99"] = metric_values["quantiles"]["p99"]
+                metrics[f"{metric_name}_max"] = metric_values["max"]
         elif isinstance(metric_values, (int, float)):
             # If the metric is a single variable, add it directly
             metrics[metric_name] = metric_values
