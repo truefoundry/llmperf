@@ -1,6 +1,6 @@
 # LLMPerf
 
-A Tool for evaulation the performance of LLM APIs.
+A Tool for evaulation the performance of LLM APIs. This repo is forked from https://github.com/ray-project/llmperf and builds upon this awesome project to log benchmarking metrics to Truefoundry.
 
 ## Installation
 
