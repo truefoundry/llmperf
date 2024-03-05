@@ -1,4 +1,5 @@
 from typing import List
+
 from llmperf.ray_clients.litellm_client import LiteLLMClient
 from llmperf.ray_clients.openai_chat_completions_client import (
     OpenAIChatCompletionsClient,
@@ -7,15 +8,10 @@ from llmperf.ray_clients.sagemaker_client import SageMakerClient
 from llmperf.ray_clients.vertexai_client import VertexAIClient
 from llmperf.ray_llm_client import LLMClient
 
-
 SUPPORTED_APIS = ["openai", "anthropic", "litellm"]
 
 
-def construct_clients(
-    llm_api: str,
-    num_clients: int,
-    tokenizer_id: str = "hf-internal-testing/llama-tokenizer",
-) -> List[LLMClient]:
+def construct_clients(llm_api: str, num_clients: int, **kwargs) -> List[LLMClient]:
     """Construct LLMClients that will be used to make requests to the LLM API.
 
     Args:
@@ -26,7 +22,6 @@ def construct_clients(
         The constructed LLMCLients
 
     """
-    kwargs = {"tokenizer_id": tokenizer_id}
     if llm_api == "openai":
         clients = [
             OpenAIChatCompletionsClient.remote(**kwargs) for _ in range(num_clients)
