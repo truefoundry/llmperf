@@ -174,7 +174,7 @@ def log_metrics(
     import mlfoundry
 
     client = mlfoundry.get_client()
-    if not run_name:
+    if not run_name or run_name == "NA":
         job_run_name = os.getenv("TFY_INTERNAL_JOB_RUN_NAME")
         if job_run_name:
             fallback_run_name = f"bench-{sanitize_name(model)}-{job_run_name}"
