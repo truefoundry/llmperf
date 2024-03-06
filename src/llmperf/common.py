@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from llmperf.ray_clients.litellm_client import LiteLLMClient
 from llmperf.ray_clients.openai_chat_completions_client import (
@@ -11,7 +11,11 @@ from llmperf.ray_llm_client import LLMClient
 SUPPORTED_APIS = ["openai", "anthropic", "litellm"]
 
 
-def construct_clients(llm_api: str, num_clients: int, **kwargs) -> List[LLMClient]:
+def construct_clients(
+    llm_api: str,
+    num_clients: int,
+    tokenizer_id: Optional[str] = "hf-internal-testing/llama-tokenizer",
+) -> List[LLMClient]:
     """Construct LLMClients that will be used to make requests to the LLM API.
 
     Args:
@@ -22,7 +26,9 @@ def construct_clients(llm_api: str, num_clients: int, **kwargs) -> List[LLMClien
         The constructed LLMCLients
 
     """
+    kwargs = {"tokenizer_id": tokenizer_id}
     if llm_api == "openai":
+        kwargs["tokenizer_id"] = None
         clients = [
             OpenAIChatCompletionsClient.remote(**kwargs) for _ in range(num_clients)
         ]

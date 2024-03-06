@@ -1,19 +1,30 @@
 import json
 import os
 import time
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import ray
 import requests
 
-from llmperf.ray_llm_client import LLMClient
-from llmperf.models import RequestConfig
 from llmperf import common_metrics
+from llmperf.models import RequestConfig
+from llmperf.ray_llm_client import LLMClient
 
 
 @ray.remote
 class OpenAIChatCompletionsClient(LLMClient):
     """Client for OpenAI Chat Completions API."""
+
+    def __init__(
+        self,
+        tokenizer_id: Optional[str] = "hf-internal-testing/llama-tokenizer",
+    ):
+        if not isinstance(tokenizer_id, type(None)):
+            from transformers import AutoTokenizer
+
+            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_id)
+        else:
+            self.tokenizer = None
 
     def llm_request(self, request_config: RequestConfig) -> Dict[str, Any]:
         prompt = request_config.prompt
