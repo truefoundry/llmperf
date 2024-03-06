@@ -371,7 +371,7 @@ def run_token_benchmark(
         tokenizer_id=tokenizer_id,
     )
 
-    if ml_repo is not None:
+    if ml_repo is not None and ml_repo != "NA":
         log_metrics(summary=summary, model=model, ml_repo=ml_repo, run_name=run_name)
 
     if results_dir:
