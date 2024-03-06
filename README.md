@@ -68,7 +68,8 @@ For more details visit [here](https://docs.truefoundry.com/docs/generate-api-key
 
 ML Repositories are like specialized Git repositories for machine learning, managing runs, models, and artifacts within MLFoundry.
 
-We'll use mlfoundry to log parameters and metrics for the cumulative results of all results within an ML Repo.
+We’ll use mlfoundry to log parameters and metrics to ML Repository.
+Read more about ML Repository [here](https://docs.truefoundry.com/docs/introduction-to-ml-repo).
 
 #### Script
 
@@ -101,11 +102,19 @@ After logging the results seen are:
 
 ## Basic Usage
 
-We implement a load test for evaluating LLMs to check for performance.
+We implement a load test for evaluating Large Language Model (LLMs) latency metrics to assess their performance.
 
 ## Load test
 
-The load test spawns a number of concurrent requests to the LLM API and measures the inter-token latency and generation throughput per request and across concurrent requests. The prompt that is sent with each request is of the format:
+The load test is designed to simulate multiple simultaneous requests to the LLM API.
+
+It measures two key metrics: the time taken between tokens (inter-token latency) and the rate of token generation (generation throughput) for each request and across all concurrent requests.
+
+In addition to these, the test also gauges several other metrics. These include time to first token, end-to-end latency, number of output tokens, and total number of tokens used.
+
+The test is also designed to monitor and record any errors that occur during the process. It logs the error message, error code, frequency of each error code, and total number of errors.
+
+The test involves sending a prompt with each request, which is structured as follows:
 
 ```
 Randomly stream lines from the following text. Don't generate eos tokens:
@@ -115,12 +124,11 @@ LINE 3,
 ...
 ```
 
-Where the lines are randomly sampled from a collection of lines from Shakespeare sonnets.
+In this prompt, the lines are randomly selected from a collection of lines taken from Shakespeare's sonnets.
 
-You can count tokens using any tokenizer from huggingface, by providing tokenizer id in the params of the run.
-Default tokenizer used is [`hf-internal-testing/llama-tokenizer`](https://huggingface.co/hf-internal-testing/llama-tokenizer).
+You have the option to count tokens using any tokenizer available from Hugging Face. You can specify the tokenizer by providing its ID in the parameters of the run.By default tokenizer used is [`hf-internal-testing/llama-tokenizer`](https://huggingface.co/hf-internal-testing/llama-tokenizer).
 
-To run the most basic load test you can the [`token_benchmark_ray`](./token_benchmark_ray.py) script.
+To conduct a basic load test, you can use the [`token_benchmark_ray`](./token_benchmark_ray.py) script.
 
 ### Caveats and Disclaimers
 
