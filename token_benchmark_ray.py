@@ -174,7 +174,7 @@ def log_metrics(
     import mlfoundry
 
     client = mlfoundry.get_client()
-    if not run_name:
+    if not run_name or run_name == "NA":
         job_run_name = os.getenv("TFY_INTERNAL_JOB_RUN_NAME")
         if job_run_name:
             fallback_run_name = f"bench-{sanitize_name(model)}-{job_run_name}"
@@ -365,7 +365,7 @@ def run_token_benchmark(
         tokenizer_id=tokenizer_id,
     )
 
-    if ml_repo is not None:
+    if ml_repo is not None and ml_repo != "NA":
         log_metrics(summary=summary, model=model, ml_repo=ml_repo, run_name=run_name)
 
     if results_dir:
